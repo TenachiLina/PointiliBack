@@ -40,7 +40,6 @@
 - Easy integration with GitHub for automatic deployments.  
 - Minimal setup and environment management effort.  
 
----
 
 #### **Option 2 – Alternative (Low-Cost Production Setup)**
 - **Frontend:** Render  
