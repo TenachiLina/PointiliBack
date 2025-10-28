@@ -3,22 +3,26 @@ const express = require('express');
 const cors = require('cors');
 const employeesRoutes = require('./routes/employees');
 const worktimeRoutes = require('./routes/worktime');
-const planningRoutes = require('./routes/planning.js'); 
+const planningRoutes = require('./routes/planning.js');
 
 const app = express();
 
 
 app.use(cors());
-app.use(express.json()); 
+app.use(express.json());
 
 app.get('/', (req, res) => {
   res.send('✅ Express is working!');
 });
 
-app.use('/employees', employeesRoutes);
-app.use('/worktime', worktimeRoutes);
+app.get('/test', (req, res) => {
+  res.json({ message: "Server is connected properly ✅" });
+});
 
-app.use('/api', planningRoutes); 
+app.use('/api/employees', employeesRoutes);
+
+app.use('/api/worktime', worktimeRoutes);
+app.use('/api/planning', planningRoutes);
 
 
 

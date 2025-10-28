@@ -2,13 +2,13 @@ const db = require('../db');
 
 exports.savePlanning = (req, res) => {
   const { plan_date, assignments } = req.body;
-  
+
   if (!plan_date) {
     return res.status(400).json({ error: "Plan date is required" });
   }
 
   console.log('💾 Saving planning for date:', plan_date);
-  
+
   db.beginTransaction((err) => {
     if (err) {
       console.error('❌ Transaction error:', err);
@@ -25,7 +25,10 @@ exports.savePlanning = (req, res) => {
 
       // Validate and transform assignments
       const validAssignments = validateAndTransformAssignments(assignments, shifts, tasks);
-      
+      console.log('🧠 Raw assignments:', assignments);
+      console.log('🧩 Validation result:', validAssignments);
+
+
       if (validAssignments.error) {
         return db.rollback(() => {
           res.status(400).json({ error: validAssignments.error });
@@ -65,8 +68,11 @@ exports.savePlanning = (req, res) => {
           plan_date
         ]);
 
+        console.log('🧩 Values to insert:', values);
+
+
         const query = 'INSERT INTO planning (shift_id, emp_id, task_id, plan_date) VALUES ?';
-        
+
         db.query(query, [values], (err, result) => {
           if (err) {
             return db.rollback(() => {
@@ -84,10 +90,10 @@ exports.savePlanning = (req, res) => {
             }
 
             console.log('✅ Planning saved successfully. Assignments:', result.affectedRows);
-            res.json({ 
-              message: "✅ Planning saved successfully", 
-              date: plan_date, 
-              assignments_count: result.affectedRows 
+            res.json({
+              message: "✅ Planning saved successfully",
+              date: plan_date,
+              assignments_count: result.affectedRows
             });
           });
         });
@@ -101,11 +107,11 @@ function getShiftAndTaskIds(callback) {
   // Get shifts
   db.query('SELECT shift_id, start_time, end_time FROM shifts ORDER BY shift_id', (err, shiftResults) => {
     if (err) return callback(err);
-    
+
     // Get tasks  
     db.query('SELECT task_id, task_name FROM tasks ORDER BY task_id', (err, taskResults) => {
       if (err) return callback(err);
-      
+
       callback(null, {
         shifts: shiftResults,
         tasks: taskResults
@@ -127,9 +133,9 @@ function validateAndTransformAssignments(assignments, shifts, tasks) {
   const shiftMap = {};
   shifts.forEach(shift => {
 
-    if (shift.shift_id === 1) shiftMap[1] = shift.shift_id; 
-    if (shift.shift_id === 2) shiftMap[2] = shift.shift_id;  
-    if (shift.shift_id === 3) shiftMap[3] = shift.shift_id; 
+    if (shift.shift_id === 1) shiftMap[1] = shift.shift_id;
+    if (shift.shift_id === 2) shiftMap[2] = shift.shift_id;
+    if (shift.shift_id === 3) shiftMap[3] = shift.shift_id;
   });
 
   const taskMap = {};
@@ -182,7 +188,7 @@ function validateAndTransformAssignments(assignments, shifts, tasks) {
 // Get available shifts
 exports.getShifts = (req, res) => {
   console.log(' Fetching available shifts');
-  
+
   db.query('SELECT shift_id, start_time, end_time FROM shifts ORDER BY shift_id', (err, results) => {
     if (err) {
       console.error('Database error:', err);
@@ -203,7 +209,7 @@ exports.getShifts = (req, res) => {
 // Get available tasks
 exports.getTasks = (req, res) => {
   console.log(' Fetching available tasks');
-  
+
   db.query('SELECT task_id, task_name FROM tasks ORDER BY task_id', (err, results) => {
     if (err) {
       console.error(' Database error:', err);
@@ -225,7 +231,7 @@ exports.getTasks = (req, res) => {
 // Get planning for a specific date
 exports.getPlanning = (req, res) => {
   const { date } = req.query;
-  
+
   if (!date) {
     return res.status(400).json({ error: "Date parameter is required" });
   }
@@ -257,7 +263,7 @@ exports.getPlanning = (req, res) => {
 
 exports.updatePlanningAssignment = (req, res) => {
   const { shift_id, emp_id, task_id, plan_date, new_emp_id } = req.body;
-  
+
   if (!shift_id || !task_id || !plan_date) {
     return res.status(400).json({ error: "Shift ID, Task ID, and Plan Date are required" });
   }
@@ -281,7 +287,7 @@ exports.updatePlanningAssignment = (req, res) => {
       VALUES (?, ?, ?, ?) 
       ON DUPLICATE KEY UPDATE emp_id = ?
     `;
-    
+
     db.query(query, [shift_id, new_emp_id, task_id, plan_date, new_emp_id], (err, result) => {
       if (err) {
         console.error('❌ Update error:', err);
@@ -297,7 +303,7 @@ exports.updatePlanningAssignment = (req, res) => {
 // Delete all planning for a specific date
 exports.deletePlanning = (req, res) => {
   const { date } = req.body;
-  
+
   if (!date) {
     return res.status(400).json({ error: "Date is required" });
   }
@@ -318,7 +324,7 @@ exports.deletePlanning = (req, res) => {
 // Get available shifts
 exports.getShifts = (req, res) => {
   console.log(' Fetching available shifts');
-  
+
   db.query('SELECT * FROM shifts ORDER BY shift_id', (err, results) => {
     if (err) {
       console.error(' Database error:', err);
@@ -333,7 +339,7 @@ exports.getShifts = (req, res) => {
 // Get available tasks (posts)
 exports.getTasks = (req, res) => {
   console.log(' Fetching available tasks');
-  
+
   db.query('SELECT * FROM tasks ORDER BY task_id', (err, results) => {
     if (err) {
       console.error('Database error:', err);
