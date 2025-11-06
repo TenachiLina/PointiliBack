@@ -19,32 +19,46 @@ const db = require('../db');
 
 // backend controller
 exports.saveWorkTime = (req, res) => {
-  const { employeeId, date, timeOfWork, shift, delay, overtime } = req.body;
+
+const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penalty, bonus } = req.body;
+    console.log("🟢 Incoming work time data:", req.body);
 
   if (!employeeId || !date) {
     return res.status(400).json({ error: "Employee ID and date are required" });
   }
 
   const query = `
-    INSERT INTO worktime (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO worktime (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, bonus)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   db.query(
-    query,
-    [
-      employeeId,
-      shift || null,
-      date,
-      delay || "0",
-      overtime || "0",
-      timeOfWork || "0"
-    ],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ message: "✅ Work time saved", id: result.insertId });
-    }
-  );
+  `
+  INSERT INTO worktime 
+  (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, bonus)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  [
+    employeeId,
+    shift || null,
+    date,
+    delay || "0",
+    overtime || "0",
+    timeOfWork || "0",
+    consomation || "0",
+    penalty || "0",
+    bonus || "0"
+  ],
+  (err, result) => {
+    if (err) {
+  console.error("❌ DB insert error:", err.sqlMessage || err);
+  return res.status(500).json({ error: err.sqlMessage || err.message });
+}
+
+    res.json({ message: "✅ Work time saved", id: result.insertId });
+  }
+);
+
 };
 
 // Get work times by employee - FIXED
