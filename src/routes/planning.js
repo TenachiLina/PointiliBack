@@ -67,6 +67,10 @@ const planningController = require('../controllers/planningController');
 const db = require('../db');
 
 // --- Planning routes ---
+// ✅ NEW DELETE ROUTE
+router.delete('/delete', planningController.deleteFromPlanning);
+
+
 router.post('/save', planningController.savePlanning);
 router.get('/', planningController.getPlanning);
 router.put('/assignment', planningController.updatePlanningAssignment);

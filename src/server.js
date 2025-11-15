@@ -25,6 +25,11 @@ app.use('/api/worktime', worktimeRoutes);
 app.use('/api/planning', planningRoutes);
 
 
+//NEWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+app.use('/api/planning', planningRoutes);
+
+
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

@@ -350,3 +350,39 @@ exports.getTasks = (req, res) => {
     res.json(results);
   });
 };
+
+//NEEEEEEEWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+
+exports.deleteFromPlanning = (req, res) => {
+    const { emp_id, task_id, shift_id, plan_date } = req.body;
+
+    if (!emp_id || !task_id || !shift_id || !plan_date) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const deletePlanningQuery = `
+        DELETE FROM planning 
+        WHERE emp_id = ? AND task_id = ? AND shift_id = ? AND plan_date = ?;
+    `;
+
+    const deleteWorktimeQuery = `
+        DELETE FROM worktime 
+        WHERE emp_id = ? AND task_id = ? AND shift_id = ? AND work_date = ?;
+    `;
+
+    db.query(deletePlanningQuery, [emp_id, task_id, shift_id, plan_date], (err) => {
+        if (err) {
+            console.error("❌ Error deleting from planning:", err);
+            return res.status(500).json({ error: "DB error removing planning entry" });
+        }
+
+        db.query(deleteWorktimeQuery, [emp_id, task_id, shift_id, plan_date], (err2) => {
+            if (err2) {
+                console.error("❌ Error deleting from worktime:", err2);
+                return res.status(500).json({ error: "DB error removing worktime entry" });
+            }
+
+            return res.json({ success: true, message: "Entry deleted successfully" });
+        });
+    });
+};
