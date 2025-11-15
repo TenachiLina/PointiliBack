@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const worktimeController = require('../controllers/worktimeController');
 const db = require('../db'); // your mysql2 connection
+// routes/worktime.js or index.js
+//const worktimeController = require('../controllers/worktimeController');
 
 router.get('/monthly', async (req, res) => {
     const { month, year } = req.query;
@@ -25,6 +27,8 @@ router.get('/monthly', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+router.get('/api/worktime/report', worktimeController.getWorkTimeReport);
 
 router.post('/', worktimeController.saveWorkTime);
 router.get('/employee/:employeeId', worktimeController.getWorkTimesByEmployee);

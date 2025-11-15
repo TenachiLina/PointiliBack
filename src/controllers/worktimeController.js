@@ -1,22 +1,5 @@
 const db = require('../db');
 
-// exports.saveWorkTime = (req, res) => {
-//   const { employeeId, date, clockIn, clockOut, timeOfWork, shift, delay, overtime } = req.body;
-
-//   if (!employeeId || !date) {
-//     return res.status(400).json({ error: "Employee ID and date are required" });
-//   }
-
-//   db.query(
-//     'INSERT INTO worktime (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours) VALUES (?, ?, ?, ?, ?, ?)',
-//     [employeeId, shift || null, date, delay || 0, overtime || 0, timeOfWork || 0],
-//     (err, result) => {
-//       if (err) return res.status(500).json({ error: err.message });
-//       res.json({ message: "✅ Work time saved", id: result.insertId });
-//     }
-//   );
-// };
-
 // backend controller
 exports.saveWorkTime = (req, res) => {
 
@@ -129,4 +112,77 @@ exports.updateWorkTime = (req, res) => {
       res.json({ message: "✅ Work time updated" });
     }
   );
+};
+
+// Get worktime report for a range of dates for a specific employee
+exports.getWorkTimeReport = (req, res) => {
+  const { start, end, empId } = req.query;
+
+  if (!start || !end || !empId) {
+    return res.status(400).json({ error: "start, end, and empId are required" });
+  }
+
+  const query = `
+    SELECT 
+      w.worktime_id,
+      w.emp_id,
+      e.name AS emp_name,
+      w.shift_id,
+      w.work_date,
+      w.late_minutes,
+      w.overtime_minutes,
+      w.work_hours,
+      w.bonus,
+      w.penalty,
+      w.consomation
+    FROM worktime w
+    INNER JOIN employees e ON w.emp_id = e.emp_id
+    WHERE w.emp_id = ? AND w.work_date BETWEEN ? AND ?
+    ORDER BY w.work_date
+  `;
+
+  db.query(query, [empId, start, end], (err, results) => {
+    if (err) {
+      console.error("Error in getWorkTimeReport:", err);
+      return res.status(500).json({ error: err.message });
+    }
+
+
+    // Normalize numeric fields so frontend shows them correctly
+    const normalized = results.map((r) => ({
+      ...r,
+      work_hours: Number(r.work_hours || 0),
+      late_minutes: Number(r.late_minutes || 0),
+      overtime_minutes: Number(r.overtime_minutes || 0),
+      bonus: Number(r.bonus || 0),
+      penalty: Number(r.penalty || 0),
+      consommation: Number(r.consomation || 0), // match table column
+    }));
+
+    // Compute summary
+    const summary = normalized.reduce(
+      (acc, r) => {
+        acc.total_hours_minutes += r.work_hours;
+        acc.total_delay_minutes += r.late_minutes;
+        acc.total_overtime_minutes += r.overtime_minutes;
+        acc.total_bonus += r.bonus;
+        acc.total_penalty += r.penalty;
+        acc.total_consommation += r.consommation;
+        if (r.late_minutes > 0) acc.count_late += 1;
+        return acc;
+      },
+      {
+        total_hours_minutes: 0,
+        total_delay_minutes: 0,
+        total_overtime_minutes: 0,
+        total_bonus: 0,
+        total_penalty: 0,
+        total_consommation: 0,
+        count_late: 0,
+        count_early: 0,
+      }
+    );
+
+    res.json({ rows: normalized, summary });
+  });
 };
