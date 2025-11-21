@@ -23,7 +23,7 @@ app.use('/api/employees', employeesRoutes);
 
 app.use('/', worktimeRoutes);  // ← no prefix
 
-//app.use('/api/worktime', worktimeRoutes);
+app.use('/api/worktime', worktimeRoutes);
 app.use('/api/planning', planningRoutes);
 
 
