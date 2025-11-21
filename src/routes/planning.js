@@ -78,6 +78,36 @@ router.delete('/', planningController.deletePlanning);
 router.get('/shifts', planningController.getShifts);
 router.get('/tasks', planningController.getTasks);
 
+// --- In your planning router file (e.g., /routes/planningRoutes.js) ---
+
+// ... (existing routes)
+
+// 🆕 NEW: Add this route to get ALL shifts for a specific employee and date
+router.get('/employee-shifts-all/:empId/:date', async (req, res) => {
+    const { empId, date } = req.params;
+
+    try {
+        // Use db.promise() for async/await pattern
+        const [rows] = await db.promise().query(
+            // Select all relevant planning columns, as the frontend expects an array of shift objects
+            'SELECT shift_id, task_id, plan_date FROM planning WHERE emp_id = ? AND plan_date = ?',
+            [empId, date]
+        );
+
+        // The frontend expects an array of shift objects (even if it's empty)
+        // If the query succeeds, 'rows' is the array of shifts/assignments.
+        console.log(`✅ Fetched ALL shifts for employee ${empId} on ${date}:`, rows);
+        res.json(rows); 
+        
+    } catch (err) {
+        console.error('❌ Error fetching ALL employee shifts:', err);
+        // Return an empty array on error to prevent frontend crashes
+        res.status(500).json([]); 
+    }
+});
+
+// ... (rest of the router code)
+
 // --- Employees for planning ---
 router.get('/employees', (req, res) => {
     console.log("🔹 GET /api/planning/employees called");
