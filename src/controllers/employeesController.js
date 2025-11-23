@@ -13,28 +13,87 @@ exports.getEmployees = (req, res) => {
     res.json(results);
   });
 };
+// exports.deleteEmployee = async (req, res) => {
+//   const { id } = req.params;
+//   console.log("🔧 Deleting employee with ID:", id);
+
+//   // ✅ All tables related to employees
+//   const relatedTables = [
+//     "planning",
+//     "worktime",
+//     "salary",
+//     "reward",
+//     "penalities",
+//     "consomation",
+//     "advances",
+//   ];
+
+//   try {
+//     // ✅ Start transaction
+//     await new Promise((resolve, reject) => {
+//       db.beginTransaction(err => (err ? reject(err) : resolve()));
+//     });
+
+//     // ✅ Delete from related tables first
+//     for (const table of relatedTables) {
+//       await new Promise((resolve, reject) => {
+//         db.query(`DELETE FROM ${table} WHERE emp_id = ?`, [id], (err) => {
+//           if (err) {
+//             console.error(`❌ Error deleting from ${table}:`, err.message);
+//             return reject(err);
+//           }
+//           console.log(`🧹 Deleted records from ${table}`);
+//           resolve();
+//         });
+//       });
+//     }
+
+//     // ✅ Delete employee record
+//     const result = await new Promise((resolve, reject) => {
+//       db.query("DELETE FROM employees WHERE emp_id = ?", [id], (err, result) => {
+//         if (err) return reject(err);
+//         resolve(result);
+//       });
+//     });
+
+//     // ✅ Handle not found
+//     if (result.affectedRows === 0) {
+//       await new Promise((resolve) => db.rollback(() => resolve()));
+//       return res.status(404).json({ error: "Employee not found" });
+//     }
+
+//     // ✅ Commit if all good
+//     await new Promise((resolve, reject) => {
+//       db.commit(err => (err ? reject(err) : resolve()));
+//     });
+
+//     console.log("✅ Employee and related records deleted successfully");
+//     res.json({ message: "✅ Employee deleted successfully" });
+
+//   } catch (err) {
+//     console.error("❌ Error deleting employee:", err);
+//     await new Promise((resolve) => db.rollback(() => resolve()));
+//     res.status(500).json({
+//       error: "Failed to delete employee. Check related tables or constraints.",
+//       details: err.message,
+//     });
+//   }
+// };
+
 exports.deleteEmployee = async (req, res) => {
   const { id } = req.params;
   console.log("🔧 Deleting employee with ID:", id);
 
-  // ✅ All tables related to employees
-  const relatedTables = [
-    "planning",
-    "worktime",
-    "salary",
-    "reward",
-    "penalities",
-    "consomation",
-    "advances",
-  ];
+  // Tables with foreign key dependencies
+  const relatedTables = ["planning", "worktime"];
 
   try {
-    // ✅ Start transaction
+    // Start transaction
     await new Promise((resolve, reject) => {
       db.beginTransaction(err => (err ? reject(err) : resolve()));
     });
 
-    // ✅ Delete from related tables first
+    // Delete from related tables first
     for (const table of relatedTables) {
       await new Promise((resolve, reject) => {
         db.query(`DELETE FROM ${table} WHERE emp_id = ?`, [id], (err) => {
@@ -48,7 +107,7 @@ exports.deleteEmployee = async (req, res) => {
       });
     }
 
-    // ✅ Delete employee record
+    // Delete the employee record
     const result = await new Promise((resolve, reject) => {
       db.query("DELETE FROM employees WHERE emp_id = ?", [id], (err, result) => {
         if (err) return reject(err);
@@ -56,13 +115,13 @@ exports.deleteEmployee = async (req, res) => {
       });
     });
 
-    // ✅ Handle not found
+    // Employee not found
     if (result.affectedRows === 0) {
       await new Promise((resolve) => db.rollback(() => resolve()));
       return res.status(404).json({ error: "Employee not found" });
     }
 
-    // ✅ Commit if all good
+    // Commit transaction
     await new Promise((resolve, reject) => {
       db.commit(err => (err ? reject(err) : resolve()));
     });
@@ -72,6 +131,7 @@ exports.deleteEmployee = async (req, res) => {
 
   } catch (err) {
     console.error("❌ Error deleting employee:", err);
+    // Rollback transaction
     await new Promise((resolve) => db.rollback(() => resolve()));
     res.status(500).json({
       error: "Failed to delete employee. Check related tables or constraints.",
@@ -79,8 +139,6 @@ exports.deleteEmployee = async (req, res) => {
     });
   }
 };
-
-
 exports.addEmployee = (req, res) => {
   const {
     name,
