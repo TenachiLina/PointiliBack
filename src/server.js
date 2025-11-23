@@ -8,7 +8,15 @@ const planningRoutes = require('./routes/planning.js');
 const app = express();
 
 
-app.use(cors());
+const allowedOrigins = [
+  "https://nexo-inouty.vercel.app",    // frontend
+  "https://pointilifront1.vercel.app" // old Vercel URL (optional)
+];
+
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
 app.use(express.json());
 
 app.get('/', (req, res) => {
