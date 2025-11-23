@@ -9,7 +9,7 @@ const app = express();
 
 
 const allowedOrigins = [
-  //"https://nexo-inouty.vercel.app",    // frontend
+  "https://nexo-inouty.vercel.app",    // frontend
   "https://pointilifront1.vercel.app" // old Vercel URL (optional)
 ];
 
