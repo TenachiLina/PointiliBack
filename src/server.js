@@ -50,6 +50,8 @@ const cors = require('cors'); // import cors
 const employeesRoutes = require('./routes/employees');
 const worktimeRoutes = require('./routes/worktime');
 const planningRoutes = require('./routes/planning');
+const shiftsRoutes = require('./routes/shiftsRoutes');
+
 
 const app = express();
 
@@ -64,6 +66,8 @@ app.get('/test', (req, res) => res.json({ message: "Server is connected properly
 app.use('/api/employees', employeesRoutes);
 app.use('/api/worktime', worktimeRoutes);
 app.use('/api/planning', planningRoutes);
+app.use('/api/shifts', shiftsRoutes);
+
 
 // --- Start server ---
 const PORT = process.env.PORT || 3001;

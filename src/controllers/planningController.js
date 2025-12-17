@@ -2,6 +2,7 @@ const db = require('../db');
 
 exports.savePlanning = (req, res) => {
   const { plan_date, assignments } = req.body;
+  console.log("💡 Received body:", req.body);
 
   if (!plan_date) {
     return res.status(400).json({ error: "Plan date is required" });
