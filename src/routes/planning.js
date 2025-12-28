@@ -146,6 +146,7 @@ router.get('/employee-shift/:empId/:date', async (req, res) => {
     }
 });
 
+console.log("📦 PLANNING ROUTES LOADED");
 
 
 module.exports = router;
