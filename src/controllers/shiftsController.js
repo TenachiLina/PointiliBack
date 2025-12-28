@@ -68,15 +68,63 @@ module.exports = {
 
   // DELETE SHIFT
   deleteShift: (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    db.query("DELETE FROM shifts WHERE shift_id = ?", [id], (err) => {
-      if (err) {
-        console.error("Error deleting shift:", err);
-        return res.status(500).json({ error: "Failed to delete shift" });
+  db.beginTransaction(err => {
+    if (err) {
+      return res.status(500).json({ error: "Failed to start transaction" });
+    }
+
+    // 1. Delete planning records
+    db.query(
+      "DELETE FROM planning WHERE shift_id = ?",
+      [id],
+      (err) => {
+        if (err) {
+          return db.rollback(() =>
+            res.status(500).json({ error: "Failed to delete planning records" })
+          );
+        }
+
+        // 2. Delete worktime records
+        db.query(
+          "DELETE FROM worktime WHERE shift_id = ?",
+          [id],
+          (err) => {
+            if (err) {
+              return db.rollback(() =>
+                res.status(500).json({ error: "Failed to delete worktime records" })
+              );
+            }
+
+            // 3. Delete shift
+            db.query(
+              "DELETE FROM shifts WHERE shift_id = ?",
+              [id],
+              (err) => {
+                if (err) {
+                  return db.rollback(() =>
+                    res.status(500).json({ error: "Failed to delete shift" })
+                  );
+                }
+
+                db.commit(err => {
+                  if (err) {
+                    return db.rollback(() =>
+                      res.status(500).json({ error: "Failed to commit transaction" })
+                    );
+                  }
+
+                  res.json({
+                    message: "Shift, planning, and worktime records deleted successfully"
+                  });
+                });
+              }
+            );
+          }
+        );
       }
-
-      res.json({ message: "Shift deleted successfully" });
-    });
+    );
+  });
   },
 };
