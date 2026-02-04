@@ -51,6 +51,7 @@ const employeesRoutes = require('./routes/employees');
 const worktimeRoutes = require('./routes/worktime');
 const planningRoutes = require('./routes/planning');
 const shiftsRoutes = require('./routes/shiftsRoutes');
+const advancesRoutes = require('./routes/advances');
 
 
 const app = express();
@@ -76,6 +77,8 @@ app.use('/api/employees', employeesRoutes);
 app.use('/api/worktime', worktimeRoutes);
 app.use('/api/planning', planningRoutes);
 app.use('/api/shifts', shiftsRoutes);
+app.use('/api/advances', advancesRoutes);
+
 
 
 // --- Start server ---

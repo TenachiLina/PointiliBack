@@ -28,7 +28,7 @@ router.get('/monthly', async (req, res) => {
     }
 });
 
-router.get('/api/worktime/report', worktimeController.getWorkTimeReport);
+router.get('/report', worktimeController.getWorkTimeReport);
 
 router.post('/', worktimeController.saveWorkTime);
 router.get('/employee/:employeeId', worktimeController.getWorkTimesByEmployee);

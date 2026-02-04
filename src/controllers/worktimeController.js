@@ -118,48 +118,57 @@ exports.updateWorkTime = (req, res) => {
 exports.getWorkTimeReport = (req, res) => {
   const { start, end, empId } = req.query;
 
-  if (!start || !end || !empId) {
+  if (!start || !end) {
     return res.status(400).json({
-      error: "start, end, and empId are required",
+      error: "start and end are required",
     });
   }
 
+  const params = [];
+  let whereClause = `
+    w.work_date BETWEEN ? AND ?
+  `;
+  params.push(start, end);
+
+  if (empId) {
+    whereClause += " AND w.emp_id = ?";
+    params.push(empId);
+  }
+
   const query = `
-  SELECT
-    w.worktime_id,
-    w.emp_id,
-    e.name AS emp_name,
-    e.Base_salary,
-    w.shift_id,
-    w.work_date,
-    w.late_minutes,
-    w.overtime_minutes,
-    w.work_hours,
-    w.bonus,
-    w.penalty,
-    w.consomation AS consommation,
+    SELECT
+      w.worktime_id,
+      w.emp_id,
+      e.name AS emp_name,
+      e.Base_salary,
+      w.shift_id,
+      w.work_date,
+      w.late_minutes,
+      w.overtime_minutes,
+      w.work_hours,
+      w.bonus,
+      w.penalty,
+      w.consomation AS consommation,
 
-    (
-      (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
-      + w.bonus
-      - w.penalty
-      - w.consomation
-      - 1
-    ) AS salary
+      (
+        (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
+        + w.bonus
+        - w.penalty
+        - w.consomation
+        - 1
+      ) AS salary
 
-  FROM worktime w
-  INNER JOIN employees e ON w.emp_id = e.emp_id
-  WHERE w.emp_id = ?
-    AND w.work_date BETWEEN ? AND ?
-  ORDER BY w.work_date;
-`;
+    FROM worktime w
+    INNER JOIN employees e ON w.emp_id = e.emp_id
+    WHERE ${whereClause}
+    ORDER BY e.name, w.work_date;
+  `;
 
-  db.query(query, [empId, start, end], (err, results) => {
+  db.query(query, params, (err, results) => {
     if (err) {
-      console.error("Error in getWorkTimeReport:", err);
+      console.error("❌ Error in getWorkTimeReport:", err);
       return res.status(500).json({ error: err.message });
     }
- 
 
     const normalized = results.map((r) => ({
       ...r,
@@ -168,47 +177,9 @@ exports.getWorkTimeReport = (req, res) => {
       bonus: Number(r.bonus || 0),
       penalty: Number(r.penalty || 0),
       consommation: Number(r.consommation || 0),
-      work_hours: r.work_hours,                   // keep HH:MM format
-      Total_hours: Number(r.Total_hours || 0),
       salary: Number(r.salary || 0),
     }));
 
-    const summary = normalized.reduce(
-      (acc, r) => {
-        // convert HH:MM to decimal hours
-        const [h, m] = (r.work_hours || "0:0").split(":").map(Number);
-        const hoursDecimal = h + m / 60;
-
-        acc.total_hours += hoursDecimal;
-        acc.total_delay_minutes += r.late_minutes;
-        acc.total_overtime_minutes += r.overtime_minutes;
-
-        acc.total_bonus += r.bonus;
-        acc.total_penalty += r.penalty;
-        acc.total_consommation += r.consommation;
-
-        acc.total_salary += r.salary;
-
-        if (r.late_minutes > 0) acc.count_late++;
-
-        return acc;
-      },
-      {
-        total_hours: 0,
-        total_delay_minutes: 0,
-        total_overtime_minutes: 0,
-        total_bonus: 0,
-        total_penalty: 0,
-        total_consommation: 0,
-        total_salary: 0,
-        count_late: 0,
-      }
-    );
-
-    res.json({ rows: normalized, summary });
+    res.json({ rows: normalized });
   });
 };
-
-
-
-
