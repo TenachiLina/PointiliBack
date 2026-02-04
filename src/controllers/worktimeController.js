@@ -125,34 +125,34 @@ exports.getWorkTimeReport = (req, res) => {
   }
 
   const query = `
-    SELECT
-      w.worktime_id,
-      w.emp_id,
-      e.name AS emp_name,
-      w.shift_id,
-      w.work_date,
-      w.late_minutes,
-      w.overtime_minutes,
-      w.work_hours,
-      w.bonus,
-      w.penalty,
-      w.consomation AS consommation,
-      e.Total_hours,
+  SELECT
+    w.worktime_id,
+    w.emp_id,
+    e.name AS emp_name,
+    e.Base_salary,
+    w.shift_id,
+    w.work_date,
+    w.late_minutes,
+    w.overtime_minutes,
+    w.work_hours,
+    w.bonus,
+    w.penalty,
+    w.consomation AS consommation,
 
-      (
-        (TIME_TO_SEC(w.work_hours) / 3600) * e.Total_hours
-        + w.bonus
-        - w.penalty
-        - w.consomation
-        - 1
-      ) AS salary
+    (
+      (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
+      + w.bonus
+      - w.penalty
+      - w.consomation
+      - 1
+    ) AS salary
 
-    FROM worktime w
-    INNER JOIN employees e ON w.emp_id = e.emp_id
-    WHERE w.emp_id = ?
-      AND w.work_date BETWEEN ? AND ?
-    ORDER BY w.work_date;
-  `;
+  FROM worktime w
+  INNER JOIN employees e ON w.emp_id = e.emp_id
+  WHERE w.emp_id = ?
+    AND w.work_date BETWEEN ? AND ?
+  ORDER BY w.work_date;
+`;
 
   db.query(query, [empId, start, end], (err, results) => {
     if (err) {

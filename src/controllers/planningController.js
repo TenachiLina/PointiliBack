@@ -2,6 +2,7 @@ const db = require('../db');
 
 exports.savePlanning = (req, res) => {
   const { plan_date, assignments } = req.body;
+  console.log("💡 Received body:", req.body);
 
   if (!plan_date) {
     return res.status(400).json({ error: "Plan date is required" });
@@ -121,62 +122,102 @@ function getShiftAndTaskIds(callback) {
 }
 
 // Helper function to validate and transform assignments
+// function validateAndTransformAssignments(assignments, shifts, tasks) {
+//   if (!assignments || assignments.length === 0) {
+//     return { data: [] };
+//   }
+
+//   const validAssignments = [];
+//   const errors = [];
+
+//   // Create mappings for easier lookup
+//   const shiftMap = {};
+//   shifts.forEach(shift => {
+
+//     if (shift.shift_id === 1) shiftMap[1] = shift.shift_id;
+//     if (shift.shift_id === 2) shiftMap[2] = shift.shift_id;
+//     if (shift.shift_id === 3) shiftMap[3] = shift.shift_id;
+//   });
+
+//   const taskMap = {};
+//   tasks.forEach(task => {
+//     // Map task names to IDs
+//     const taskName = task.task_name.toLowerCase();
+//     if (taskName.includes('pizzaiolo')) taskMap[1] = task.task_id;
+//     else if (taskName.includes('livreur')) taskMap[2] = task.task_id;
+//     else if (taskName.includes('agent polyvalent')) taskMap[3] = task.task_id;
+//     else if (taskName.includes('prepateur')) taskMap[4] = task.task_id;
+//     else if (taskName.includes('cassier')) taskMap[5] = task.task_id;
+//     else if (taskName.includes('serveur')) taskMap[6] = task.task_id;
+//     else if (taskName.includes('plongeur')) taskMap[7] = task.task_id;
+//     else if (taskName.includes('manageur')) taskMap[8] = task.task_id;
+//     else if (taskName.includes('packaging')) taskMap[9] = task.task_id;
+//     else if (taskName.includes('topping')) taskMap[10] = task.task_id;
+//     else if (taskName.includes('bar')) taskMap[11] = task.task_id;
+//   });
+
+//   assignments.forEach((assignment, index) => {
+//     if (!assignment.emp_id) return; // Skip if no employee selected
+
+//     const actualShiftId = shiftMap[assignment.shift_id];
+//     const actualTaskId = taskMap[assignment.task_id];
+
+//     if (!actualShiftId) {
+//       errors.push(`Invalid shift_id: ${assignment.shift_id} at position ${index + 1}`);
+//       return;
+//     }
+
+//     if (!actualTaskId) {
+//       errors.push(`Invalid task_id: ${assignment.task_id} at position ${index + 1}`);
+//       return;
+//     }
+
+//     validAssignments.push({
+//       shift_id: actualShiftId,
+//       emp_id: assignment.emp_id,
+//       task_id: actualTaskId
+//     });
+//   });
+
+//   if (errors.length > 0) {
+//     return { error: errors.join('; ') };
+//   }
+
+//   return { data: validAssignments };
+// }
 function validateAndTransformAssignments(assignments, shifts, tasks) {
-  if (!assignments || assignments.length === 0) {
+  if (!Array.isArray(assignments) || assignments.length === 0) {
     return { data: [] };
   }
 
-  const validAssignments = [];
   const errors = [];
 
-  // Create mappings for easier lookup
-  const shiftMap = {};
-  shifts.forEach(shift => {
+  // ✅ Extract valid IDs directly from DB
+  const validShiftIds = shifts.map(s => Number(s.shift_id));
+  const validTaskIds = tasks.map(t => Number(t.task_id));
 
-    if (shift.shift_id === 1) shiftMap[1] = shift.shift_id;
-    if (shift.shift_id === 2) shiftMap[2] = shift.shift_id;
-    if (shift.shift_id === 3) shiftMap[3] = shift.shift_id;
-  });
-
-  const taskMap = {};
-  tasks.forEach(task => {
-    // Map task names to IDs
-    const taskName = task.task_name.toLowerCase();
-    if (taskName.includes('pizzaiolo')) taskMap[1] = task.task_id;
-    else if (taskName.includes('livreur')) taskMap[2] = task.task_id;
-    else if (taskName.includes('agent polyvalent')) taskMap[3] = task.task_id;
-    else if (taskName.includes('prepateur')) taskMap[4] = task.task_id;
-    else if (taskName.includes('cassier')) taskMap[5] = task.task_id;
-    else if (taskName.includes('serveur')) taskMap[6] = task.task_id;
-    else if (taskName.includes('plongeur')) taskMap[7] = task.task_id;
-    else if (taskName.includes('manageur')) taskMap[8] = task.task_id;
-    else if (taskName.includes('packaging')) taskMap[9] = task.task_id;
-    else if (taskName.includes('topping')) taskMap[10] = task.task_id;
-    else if (taskName.includes('bar')) taskMap[11] = task.task_id;
-  });
-
-  assignments.forEach((assignment, index) => {
-    if (!assignment.emp_id) return; // Skip if no employee selected
-
-    const actualShiftId = shiftMap[assignment.shift_id];
-    const actualTaskId = taskMap[assignment.task_id];
-
-    if (!actualShiftId) {
-      errors.push(`Invalid shift_id: ${assignment.shift_id} at position ${index + 1}`);
-      return;
+  const validAssignments = assignments.map((a, index) => {
+    if (!a.emp_id) {
+      errors.push(`Missing emp_id at position ${index + 1}`);
+      return null;
     }
 
-    if (!actualTaskId) {
-      errors.push(`Invalid task_id: ${assignment.task_id} at position ${index + 1}`);
-      return;
+    if (!validShiftIds.includes(Number(a.shift_id))) {
+      errors.push(`Invalid shift_id: ${a.shift_id} at position ${index + 1}`);
+      return null;
     }
 
-    validAssignments.push({
-      shift_id: actualShiftId,
-      emp_id: assignment.emp_id,
-      task_id: actualTaskId
-    });
-  });
+    if (!validTaskIds.includes(Number(a.task_id))) {
+      errors.push(`Invalid task_id: ${a.task_id} at position ${index + 1}`);
+      return null;
+    }
+
+    return {
+      shift_id: Number(a.shift_id),
+      emp_id: Number(a.emp_id),
+      task_id: Number(a.task_id),
+    };
+  }).filter(Boolean);
 
   if (errors.length > 0) {
     return { error: errors.join('; ') };
