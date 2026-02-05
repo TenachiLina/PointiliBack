@@ -3,23 +3,24 @@ const db = require('../db');
 // backend controller
 exports.saveWorkTime = (req, res) => {
 
-const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penalty, bonus } = req.body;
+const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penalty, absent, absentComment   } = req.body;
     console.log("🟢 Incoming work time data:", req.body);
+console.log(req.body);
 
   if (!employeeId || !date) {
     return res.status(400).json({ error: "Employee ID and date are required" });
   }
 
   const query = `
-    INSERT INTO worktime (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, bonus)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO worktime (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   db.query(
   `
-  INSERT INTO worktime 
-  (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, bonus)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO worktime 
+(emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, absent, absent_comment)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)
   `,
   [
     employeeId,
@@ -30,7 +31,8 @@ const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penal
     timeOfWork || "0",
     consomation || "0",
     penalty || "0",
-    bonus || "0"
+    absent ? 1 : 0,                 
+    absentComment || ""   
   ],
   (err, result) => {
     if (err) {
@@ -135,34 +137,34 @@ exports.getWorkTimeReport = (req, res) => {
     params.push(empId);
   }
 
-  const query = `
-    SELECT
-      w.worktime_id,
-      w.emp_id,
-      e.name AS emp_name,
-      e.Base_salary,
-      w.shift_id,
-      w.work_date,
-      w.late_minutes,
-      w.overtime_minutes,
-      w.work_hours,
-      w.bonus,
-      w.penalty,
-      w.consomation AS consommation,
+ const query = `
+  SELECT
+    w.worktime_id,
+    w.emp_id,
+    e.name AS emp_name,
+    e.Base_salary,
+    w.shift_id,
+    w.work_date,
+    w.late_minutes,
+    w.overtime_minutes,
+    w.work_hours,
+    w.penalty,
+    w.consomation AS consommation,
 
-      (
-        (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
-        + w.bonus
-        - w.penalty
-        - w.consomation
-        - 1
-      ) AS salary
+    (
+      (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
+      - w.penalty
+      - w.consomation
+      - 1
+    ) AS salary
 
+  
     FROM worktime w
     INNER JOIN employees e ON w.emp_id = e.emp_id
     WHERE ${whereClause}
     ORDER BY e.name, w.work_date;
-  `;
+`;
+
 
   db.query(query, params, (err, results) => {
     if (err) {
@@ -174,12 +176,49 @@ exports.getWorkTimeReport = (req, res) => {
       ...r,
       late_minutes: Number(r.late_minutes || 0),
       overtime_minutes: Number(r.overtime_minutes || 0),
-      bonus: Number(r.bonus || 0),
       penalty: Number(r.penalty || 0),
       consommation: Number(r.consommation || 0),
       salary: Number(r.salary || 0),
     }));
 
-    res.json({ rows: normalized });
+    const summary = normalized.reduce(
+      (acc, r) => {
+        // convert HH:MM to decimal hours
+        const [h, m] = (r.work_hours || "0:0").split(":").map(Number);
+        const hoursDecimal = h + m / 60;
+
+        acc.total_hours += hoursDecimal;
+        acc.total_delay_minutes += r.late_minutes;
+        acc.total_overtime_minutes += r.overtime_minutes;
+
+        acc.total_penalty += r.penalty;
+        acc.total_consommation += r.consommation;
+
+        acc.total_salary += r.salary;
+
+        if (r.late_minutes > 0) acc.count_late++;
+
+        return acc;
+      },
+      {
+        total_hours: 0,
+        total_delay_minutes: 0,
+        total_overtime_minutes: 0,
+        total_penalty: 0,
+        total_consommation: 0,
+        total_salary: 0,
+        count_late: 0,
+      }
+    );
+    console.log("💰 Salaries per day:", normalized.map(r => ({
+  date: r.work_date,
+  hours: r.work_hours,
+  salary: r.salary
+})));
+
+console.log("💵 TOTAL SALARY:", summary.total_salary);
+
+
+    res.json({ rows: normalized, summary });
   });
 };
