@@ -13,72 +13,6 @@ exports.getEmployees = (req, res) => {
     res.json(results);
   });
 };
-// exports.deleteEmployee = async (req, res) => {
-//   const { id } = req.params;
-//   console.log("🔧 Deleting employee with ID:", id);
-
-//   // ✅ All tables related to employees
-//   const relatedTables = [
-//     "planning",
-//     "worktime",
-//     "salary",
-//     "reward",
-//     "penalities",
-//     "consomation",
-//     "advances",
-//   ];
-
-//   try {
-//     // ✅ Start transaction
-//     await new Promise((resolve, reject) => {
-//       db.beginTransaction(err => (err ? reject(err) : resolve()));
-//     });
-
-//     // ✅ Delete from related tables first
-//     for (const table of relatedTables) {
-//       await new Promise((resolve, reject) => {
-//         db.query(`DELETE FROM ${table} WHERE emp_id = ?`, [id], (err) => {
-//           if (err) {
-//             console.error(`❌ Error deleting from ${table}:`, err.message);
-//             return reject(err);
-//           }
-//           console.log(`🧹 Deleted records from ${table}`);
-//           resolve();
-//         });
-//       });
-//     }
-
-//     // ✅ Delete employee record
-//     const result = await new Promise((resolve, reject) => {
-//       db.query("DELETE FROM employees WHERE emp_id = ?", [id], (err, result) => {
-//         if (err) return reject(err);
-//         resolve(result);
-//       });
-//     });
-
-//     // ✅ Handle not found
-//     if (result.affectedRows === 0) {
-//       await new Promise((resolve) => db.rollback(() => resolve()));
-//       return res.status(404).json({ error: "Employee not found" });
-//     }
-
-//     // ✅ Commit if all good
-//     await new Promise((resolve, reject) => {
-//       db.commit(err => (err ? reject(err) : resolve()));
-//     });
-
-//     console.log("✅ Employee and related records deleted successfully");
-//     res.json({ message: "✅ Employee deleted successfully" });
-
-//   } catch (err) {
-//     console.error("❌ Error deleting employee:", err);
-//     await new Promise((resolve) => db.rollback(() => resolve()));
-//     res.status(500).json({
-//       error: "Failed to delete employee. Check related tables or constraints.",
-//       details: err.message,
-//     });
-//   }
-// };
 
 exports.deleteEmployee = async (req, res) => {
   const { id } = req.params;
@@ -109,7 +43,7 @@ exports.deleteEmployee = async (req, res) => {
 
     // Delete the employee record
     const result = await new Promise((resolve, reject) => {
-      db.query("DELETE FROM employees WHERE emp_id = ?", [id], (err, result) => {
+      db.query("DELETE FROM employees WHERE emp_number = ?", [id], (err, result) => {
         if (err) return reject(err);
         resolve(result);
       });
@@ -144,21 +78,22 @@ exports.addEmployee = (req, res) => {
     name,
     Base_salary,
     address,
-    phone_number
+    phone_number,
+    emp_number
   } = req.body;
 
   const personal_image = req.file ? req.file.buffer : null;
 
-  if (!name ||!Base_salary) {
-    return res.status(400).json({ error: "name, Base_salary required" });
+  if (name === undefined || emp_number === undefined || Base_salary === undefined) {
+    return res.status(400).json({ error: "Employee number, Name, Base_salary required" });
   }
 
   const sql = `
-    INSERT INTO employees (name, personal_image, address, phone_number, Base_salary)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO employees (name, personal_image, address, phone_number, Base_salary, emp_number)
+    VALUES (?, ?, ?, ?, ?, ?)
   `;
 
-  db.query(sql, [name, personal_image, address, phone_number, Base_salary], (err, result) => {
+  db.query(sql, [name, personal_image, address, phone_number, Base_salary, emp_number], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: "✅ Employee added", id: result.insertId });
   });
@@ -166,19 +101,19 @@ exports.addEmployee = (req, res) => {
 
 exports.updateEmployee = (req, res) => {
   const { id } = req.params;
-  const { name, Base_salary, address, phone_number } = req.body;
+  const { emp_number, name, Base_salary, address, phone_number } = req.body;
   const personal_image = req.file ? req.file.buffer : null;
 
   let sql = `
     UPDATE employees 
-    SET name=?, Base_salary=?, address=?, phone_number=?
+    SET emp_number=?, name=?, Base_salary=?, address=?, phone_number=?
     ${personal_image ? ", personal_image=?" : ""}
     WHERE emp_id=?
   `;
 
   const params = personal_image
-    ? [name, Base_salary, address, phone_number, personal_image, id]
-    : [name, Base_salary, address, phone_number, id];
+    ? [emp_number, name, Base_salary, address, phone_number, personal_image, id]
+    : [emp_number, name, Base_salary, address, phone_number, id];
 
   db.query(sql, params, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
