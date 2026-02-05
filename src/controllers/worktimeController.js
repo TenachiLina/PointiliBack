@@ -3,7 +3,7 @@ const db = require('../db');
 // backend controller
 exports.saveWorkTime = (req, res) => {
 
-const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penalty, bonus, absent, absentComment   } = req.body;
+const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penalty, absent, absentComment   } = req.body;
     console.log("🟢 Incoming work time data:", req.body);
 console.log(req.body);
 
@@ -12,15 +12,15 @@ console.log(req.body);
   }
 
   const query = `
-    INSERT INTO worktime (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, bonus)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO worktime (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   db.query(
   `
 INSERT INTO worktime 
-(emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, bonus, absent, absent_comment)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?,?)
+(emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, absent, absent_comment)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)
   `,
   [
     employeeId,
@@ -31,7 +31,6 @@ INSERT INTO worktime
     timeOfWork || "0",
     consomation || "0",
     penalty || "0",
-    bonus || "0",
     absent ? 1 : 0,                 
     absentComment || ""   
   ],
@@ -149,13 +148,11 @@ exports.getWorkTimeReport = (req, res) => {
     w.late_minutes,
     w.overtime_minutes,
     w.work_hours,
-    w.bonus,
     w.penalty,
     w.consomation AS consommation,
 
     (
       (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
-      + w.bonus
       - w.penalty
       - w.consomation
       - 1
@@ -179,7 +176,6 @@ exports.getWorkTimeReport = (req, res) => {
       ...r,
       late_minutes: Number(r.late_minutes || 0),
       overtime_minutes: Number(r.overtime_minutes || 0),
-      bonus: Number(r.bonus || 0),
       penalty: Number(r.penalty || 0),
       consommation: Number(r.consommation || 0),
       salary: Number(r.salary || 0),
@@ -195,7 +191,6 @@ exports.getWorkTimeReport = (req, res) => {
         acc.total_delay_minutes += r.late_minutes;
         acc.total_overtime_minutes += r.overtime_minutes;
 
-        acc.total_bonus += r.bonus;
         acc.total_penalty += r.penalty;
         acc.total_consommation += r.consommation;
 
@@ -209,7 +204,6 @@ exports.getWorkTimeReport = (req, res) => {
         total_hours: 0,
         total_delay_minutes: 0,
         total_overtime_minutes: 0,
-        total_bonus: 0,
         total_penalty: 0,
         total_consommation: 0,
         total_salary: 0,
