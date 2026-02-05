@@ -43,7 +43,7 @@ exports.deleteEmployee = async (req, res) => {
 
     // Delete the employee record
     const result = await new Promise((resolve, reject) => {
-      db.query("DELETE FROM employees WHERE emp_number = ?", [id], (err, result) => {
+      db.query("DELETE FROM employees WHERE emp_id = ?", [id], (err, result) => {
         if (err) return reject(err);
         resolve(result);
       });
