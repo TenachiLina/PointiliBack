@@ -75,7 +75,9 @@ exports.getWorkTimesByDate = (req, res) => {
       w.work_date,
       w.late_minutes,
       w.overtime_minutes,
-      w.work_hours
+      w.work_hours,
+      w.absent,
+      w.absent_comment
     FROM worktime w
     INNER JOIN employees e ON w.emp_id = e.emp_id
     WHERE w.work_date = ?
@@ -130,10 +132,15 @@ exports.getWorkTimeReport = (req, res) => {
   let whereClause = `
     w.work_date BETWEEN ? AND ?
   `;
+  let subqueryWhereClause = `
+    work_date BETWEEN ? AND ?
+  `;
+  
+  // Push params for subquery first
   params.push(start, end);
-
+  
   if (empId) {
-    whereClause += " AND w.emp_id = ?";
+    subqueryWhereClause += " AND emp_id = ?";
     params.push(empId);
   }
 
@@ -145,23 +152,32 @@ exports.getWorkTimeReport = (req, res) => {
     e.Base_salary,
     w.shift_id,
     w.work_date,
-    w.late_minutes,
-    w.overtime_minutes,
+    TIME_TO_SEC(w.late_minutes) / 60 AS late_minutes,
+    TIME_TO_SEC(w.overtime_minutes) / 60 AS overtime_minutes,
     w.work_hours,
     w.penalty,
     w.consomation AS consommation,
+    w.absent,
+    w.absent_comment,
 
     (
       (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
       - w.penalty
       - w.consomation
-      - 1
     ) AS salary
 
   
     FROM worktime w
     INNER JOIN employees e ON w.emp_id = e.emp_id
-    WHERE ${whereClause}
+    INNER JOIN (
+      SELECT emp_id, work_date, shift_id, MAX(worktime_id) as max_id
+      FROM worktime
+      WHERE ${subqueryWhereClause}
+      GROUP BY emp_id, work_date, shift_id
+    ) latest ON w.emp_id = latest.emp_id 
+               AND w.work_date = latest.work_date 
+               AND w.shift_id = latest.shift_id
+               AND w.worktime_id = latest.max_id
     ORDER BY e.name, w.work_date;
 `;
 
@@ -179,6 +195,8 @@ exports.getWorkTimeReport = (req, res) => {
       penalty: Number(r.penalty || 0),
       consommation: Number(r.consommation || 0),
       salary: Number(r.salary || 0),
+      absent: Number(r.absent || 0),
+      absent_comment: r.absent_comment || "",
     }));
 
     const summary = normalized.reduce(
@@ -195,6 +213,9 @@ exports.getWorkTimeReport = (req, res) => {
         acc.total_consommation += r.consommation;
 
         acc.total_salary += r.salary;
+        
+        // Count absences
+        if (r.absent) acc.count_absent++;
 
         if (r.late_minutes > 0) acc.count_late++;
 
@@ -208,6 +229,7 @@ exports.getWorkTimeReport = (req, res) => {
         total_consommation: 0,
         total_salary: 0,
         count_late: 0,
+        count_absent: 0,
       }
     );
     console.log("💰 Salaries per day:", normalized.map(r => ({
