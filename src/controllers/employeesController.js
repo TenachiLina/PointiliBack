@@ -75,25 +75,26 @@ exports.deleteEmployee = async (req, res) => {
 };
 exports.addEmployee = (req, res) => {
   const {
-    name,
     Base_salary,
     address,
     phone_number,
-    emp_number
+    emp_number,
+    FirstName,
+    LastName
   } = req.body;
 
   const personal_image = req.file ? req.file.buffer : null;
 
-  if (name === undefined || emp_number === undefined || Base_salary === undefined) {
+  if (FirstName === undefined || LastName === undefined || emp_number === undefined || Base_salary === undefined) {
     return res.status(400).json({ error: "Employee number, Name, Base_salary required" });
   }
 
   const sql = `
-    INSERT INTO employees (name, personal_image, address, phone_number, Base_salary, emp_number)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO employees (personal_image, address, phone_number, Base_salary, emp_number, FirstName, LastName)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
 
-  db.query(sql, [name, personal_image, address, phone_number, Base_salary, emp_number], (err, result) => {
+  db.query(sql, [personal_image, address, phone_number, Base_salary, emp_number,FirstName, LastName], (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: "✅ Employee added", id: result.insertId });
   });
@@ -101,19 +102,19 @@ exports.addEmployee = (req, res) => {
 
 exports.updateEmployee = (req, res) => {
   const { id } = req.params;
-  const { emp_number, name, Base_salary, address, phone_number } = req.body;
+  const { emp_number, FirstName, LastName, Base_salary, address, phone_number } = req.body;
   const personal_image = req.file ? req.file.buffer : null;
 
   let sql = `
     UPDATE employees 
-    SET emp_number=?, name=?, Base_salary=?, address=?, phone_number=?
+    SET emp_number=?, Firstname=?, LastName=?,  Base_salary=?, address=?, phone_number=?
     ${personal_image ? ", personal_image=?" : ""}
     WHERE emp_id=?
   `;
 
   const params = personal_image
-    ? [emp_number, name, Base_salary, address, phone_number, personal_image, id]
-    : [emp_number, name, Base_salary, address, phone_number, id];
+    ? [emp_number, FirstName, LastName, Base_salary, address, phone_number, personal_image, id]
+    : [emp_number, FirstName, LastName, Base_salary, address, phone_number, id];
 
   db.query(sql, params, (err, result) => {
     if (err) return res.status(500).json({ error: err.message });

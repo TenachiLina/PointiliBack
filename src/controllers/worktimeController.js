@@ -119,6 +119,132 @@ exports.updateWorkTime = (req, res) => {
 };
 
 // Get worktime report for a range of dates for a specific employee
+// exports.getWorkTimeReport = (req, res) => {
+//   const { start, end, empId } = req.query;
+
+//   if (!start || !end) {
+//     return res.status(400).json({
+//       error: "start and end are required",
+//     });
+//   }
+
+//   const params = [];
+//   let whereClause = `
+//     w.work_date BETWEEN ? AND ?
+//   `;
+//   let subqueryWhereClause = `
+//     work_date BETWEEN ? AND ?
+//   `;
+  
+//   // Push params for subquery first
+//   params.push(start, end);
+  
+//   if (empId) {
+//     subqueryWhereClause += " AND emp_id = ?";
+//     params.push(empId);
+//   }
+
+//  const query = `
+//   SELECT
+//     w.worktime_id,
+//     w.emp_id,
+//     e.name AS emp_name,
+//     e.Base_salary,
+//     w.shift_id,
+//     w.work_date,
+//     TIME_TO_SEC(w.late_minutes) / 60 AS late_minutes,
+//     TIME_TO_SEC(w.overtime_minutes) / 60 AS overtime_minutes,
+//     w.work_hours,
+//     w.penalty,
+//     w.consomation AS consommation,
+//     w.absent,
+//     w.absent_comment,
+
+//     (
+//       (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
+//       - w.penalty
+//       - w.consomation
+//     ) AS salary
+
+  
+//     FROM worktime w
+//     INNER JOIN employees e ON w.emp_id = e.emp_id
+//     INNER JOIN (
+//       SELECT emp_id, work_date, shift_id, MAX(worktime_id) as max_id
+//       FROM worktime
+//       WHERE ${subqueryWhereClause}
+//       GROUP BY emp_id, work_date, shift_id
+//     ) latest ON w.emp_id = latest.emp_id 
+//                AND w.work_date = latest.work_date 
+//                AND w.shift_id = latest.shift_id
+//                AND w.worktime_id = latest.max_id
+//     ORDER BY e.name, w.work_date;
+// `;
+
+
+//   db.query(query, params, (err, results) => {
+//     if (err) {
+//       console.error("❌ Error in getWorkTimeReport:", err);
+//       return res.status(500).json({ error: err.message });
+//     }
+
+//     const normalized = results.map((r) => ({
+//       ...r,
+//       late_minutes: Number(r.late_minutes || 0),
+//       overtime_minutes: Number(r.overtime_minutes || 0),
+//       penalty: Number(r.penalty || 0),
+//       consommation: Number(r.consommation || 0),
+//       salary: Number(r.salary || 0),
+//       absent: Number(r.absent || 0),
+//       absent_comment: r.absent_comment || "",
+//     }));
+
+//     const summary = normalized.reduce(
+//       (acc, r) => {
+//         // convert HH:MM to decimal hours
+//         const [h, m] = (r.work_hours || "0:0").split(":").map(Number);
+//         const hoursDecimal = h + m / 60;
+
+//         acc.total_hours += hoursDecimal;
+//         acc.total_delay_minutes += r.late_minutes;
+//         acc.total_overtime_minutes += r.overtime_minutes;
+
+//         acc.total_penalty += r.penalty;
+//         acc.total_consommation += r.consommation;
+
+//         acc.total_salary += r.salary;
+        
+//         // Count absences
+//         if (r.absent) acc.count_absent++;
+
+//         if (r.late_minutes > 0) acc.count_late++;
+
+//         return acc;
+//       },
+//       {
+//         total_hours: 0,
+//         total_delay_minutes: 0,
+//         total_overtime_minutes: 0,
+//         total_penalty: 0,
+//         total_consommation: 0,
+//         total_salary: 0,
+//         count_late: 0,
+//         count_absent: 0,
+//       }
+//     );
+//     console.log("💰 Salaries per day:", normalized.map(r => ({
+//   date: r.work_date,
+//   hours: r.work_hours,
+//   salary: r.salary
+// })));
+
+// console.log("💵 TOTAL SALARY:", summary.total_salary);
+
+
+//     res.json({ rows: normalized, summary });
+//   });
+// };
+
 exports.getWorkTimeReport = (req, res) => {
   const { start, end, empId } = req.query;
 
@@ -129,9 +255,6 @@ exports.getWorkTimeReport = (req, res) => {
   }
 
   const params = [];
-  let whereClause = `
-    w.work_date BETWEEN ? AND ?
-  `;
   let subqueryWhereClause = `
     work_date BETWEEN ? AND ?
   `;
@@ -144,29 +267,20 @@ exports.getWorkTimeReport = (req, res) => {
     params.push(empId);
   }
 
- const query = `
-  SELECT
-    w.worktime_id,
-    w.emp_id,
-    e.name AS emp_name,
-    e.Base_salary,
-    w.shift_id,
-    w.work_date,
-    TIME_TO_SEC(w.late_minutes) / 60 AS late_minutes,
-    TIME_TO_SEC(w.overtime_minutes) / 60 AS overtime_minutes,
-    w.work_hours,
-    w.penalty,
-    w.consomation AS consommation,
-    w.absent,
-    w.absent_comment,
-
-    (
-      (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
-      - w.penalty
-      - w.consomation
-    ) AS salary
-
-  
+  const query = `
+    SELECT
+      w.*,
+      e.Base_salary,
+      e.FirstName,
+      e.LastName,
+      CONCAT(e.FirstName, ' ', e.LastName) AS emp_name,
+      TIME_TO_SEC(w.late_minutes) / 60 AS late_minutes,
+      TIME_TO_SEC(w.overtime_minutes) / 60 AS overtime_minutes,
+      (
+        (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
+        - w.penalty
+        - w.consomation
+      ) AS salary
     FROM worktime w
     INNER JOIN employees e ON w.emp_id = e.emp_id
     INNER JOIN (
@@ -178,9 +292,8 @@ exports.getWorkTimeReport = (req, res) => {
                AND w.work_date = latest.work_date 
                AND w.shift_id = latest.shift_id
                AND w.worktime_id = latest.max_id
-    ORDER BY e.name, w.work_date;
-`;
-
+    ORDER BY e.FirstName, e.LastName, w.work_date;
+  `;
 
   db.query(query, params, (err, results) => {
     if (err) {
@@ -193,7 +306,7 @@ exports.getWorkTimeReport = (req, res) => {
       late_minutes: Number(r.late_minutes || 0),
       overtime_minutes: Number(r.overtime_minutes || 0),
       penalty: Number(r.penalty || 0),
-      consommation: Number(r.consommation || 0),
+      consommation: Number(r.consomation || 0),
       salary: Number(r.salary || 0),
       absent: Number(r.absent || 0),
       absent_comment: r.absent_comment || "",
@@ -201,22 +314,17 @@ exports.getWorkTimeReport = (req, res) => {
 
     const summary = normalized.reduce(
       (acc, r) => {
-        // convert HH:MM to decimal hours
         const [h, m] = (r.work_hours || "0:0").split(":").map(Number);
         const hoursDecimal = h + m / 60;
 
         acc.total_hours += hoursDecimal;
         acc.total_delay_minutes += r.late_minutes;
         acc.total_overtime_minutes += r.overtime_minutes;
-
         acc.total_penalty += r.penalty;
         acc.total_consommation += r.consommation;
-
         acc.total_salary += r.salary;
         
-        // Count absences
         if (r.absent) acc.count_absent++;
-
         if (r.late_minutes > 0) acc.count_late++;
 
         return acc;
@@ -232,14 +340,15 @@ exports.getWorkTimeReport = (req, res) => {
         count_absent: 0,
       }
     );
+    
     console.log("💰 Salaries per day:", normalized.map(r => ({
-  date: r.work_date,
-  hours: r.work_hours,
-  salary: r.salary
-})));
+      date: r.work_date,
+      name: r.emp_name,
+      hours: r.work_hours,
+      salary: r.salary
+    })));
 
-console.log("💵 TOTAL SALARY:", summary.total_salary);
-
+    console.log("💵 TOTAL SALARY:", summary.total_salary);
 
     res.json({ rows: normalized, summary });
   });
