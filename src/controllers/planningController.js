@@ -29,7 +29,6 @@ exports.savePlanning = (req, res) => {
       console.log('🧠 Raw assignments:', assignments);
       console.log('🧩 Validation result:', validAssignments);
 
-
       if (validAssignments.error) {
         return db.rollback(() => {
           res.status(400).json({ error: validAssignments.error });
@@ -61,18 +60,20 @@ exports.savePlanning = (req, res) => {
           });
         }
 
-        // Insert valid assignments
+        // ✅ UPDATED: Insert valid assignments WITH custom shift times
         const values = validAssignments.data.map(assignment => [
           assignment.shift_id,
           assignment.emp_id,
           assignment.task_id,
-          plan_date
+          plan_date,
+          assignment.custom_start_time || null,  // ← NEW
+          assignment.custom_end_time || null      // ← NEW
         ]);
 
         console.log('🧩 Values to insert:', values);
 
-
-        const query = 'INSERT INTO planning (shift_id, emp_id, task_id, plan_date) VALUES ?';
+        // ✅ UPDATED: Include custom_start_time and custom_end_time in INSERT
+        const query = 'INSERT INTO planning (shift_id, emp_id, task_id, plan_date, custom_start_time, custom_end_time) VALUES ?';
 
         db.query(query, [values], (err, result) => {
           if (err) {
@@ -121,70 +122,7 @@ function getShiftAndTaskIds(callback) {
   });
 }
 
-// Helper function to validate and transform assignments
-// function validateAndTransformAssignments(assignments, shifts, tasks) {
-//   if (!assignments || assignments.length === 0) {
-//     return { data: [] };
-//   }
 
-//   const validAssignments = [];
-//   const errors = [];
-
-//   // Create mappings for easier lookup
-//   const shiftMap = {};
-//   shifts.forEach(shift => {
-
-//     if (shift.shift_id === 1) shiftMap[1] = shift.shift_id;
-//     if (shift.shift_id === 2) shiftMap[2] = shift.shift_id;
-//     if (shift.shift_id === 3) shiftMap[3] = shift.shift_id;
-//   });
-
-//   const taskMap = {};
-//   tasks.forEach(task => {
-//     // Map task names to IDs
-//     const taskName = task.task_name.toLowerCase();
-//     if (taskName.includes('pizzaiolo')) taskMap[1] = task.task_id;
-//     else if (taskName.includes('livreur')) taskMap[2] = task.task_id;
-//     else if (taskName.includes('agent polyvalent')) taskMap[3] = task.task_id;
-//     else if (taskName.includes('prepateur')) taskMap[4] = task.task_id;
-//     else if (taskName.includes('cassier')) taskMap[5] = task.task_id;
-//     else if (taskName.includes('serveur')) taskMap[6] = task.task_id;
-//     else if (taskName.includes('plongeur')) taskMap[7] = task.task_id;
-//     else if (taskName.includes('manageur')) taskMap[8] = task.task_id;
-//     else if (taskName.includes('packaging')) taskMap[9] = task.task_id;
-//     else if (taskName.includes('topping')) taskMap[10] = task.task_id;
-//     else if (taskName.includes('bar')) taskMap[11] = task.task_id;
-//   });
-
-//   assignments.forEach((assignment, index) => {
-//     if (!assignment.emp_id) return; // Skip if no employee selected
-
-//     const actualShiftId = shiftMap[assignment.shift_id];
-//     const actualTaskId = taskMap[assignment.task_id];
-
-//     if (!actualShiftId) {
-//       errors.push(`Invalid shift_id: ${assignment.shift_id} at position ${index + 1}`);
-//       return;
-//     }
-
-//     if (!actualTaskId) {
-//       errors.push(`Invalid task_id: ${assignment.task_id} at position ${index + 1}`);
-//       return;
-//     }
-
-//     validAssignments.push({
-//       shift_id: actualShiftId,
-//       emp_id: assignment.emp_id,
-//       task_id: actualTaskId
-//     });
-//   });
-
-//   if (errors.length > 0) {
-//     return { error: errors.join('; ') };
-//   }
-
-//   return { data: validAssignments };
-// }
 function validateAndTransformAssignments(assignments, shifts, tasks) {
   if (!Array.isArray(assignments) || assignments.length === 0) {
     return { data: [] };
@@ -212,10 +150,13 @@ function validateAndTransformAssignments(assignments, shifts, tasks) {
       return null;
     }
 
+    // ✅ NEW: Include custom shift times in validated assignment
     return {
       shift_id: Number(a.shift_id),
       emp_id: Number(a.emp_id),
       task_id: Number(a.task_id),
+      custom_start_time: a.custom_start_time || null,  // ← NEW
+      custom_end_time: a.custom_end_time || null       // ← NEW
     };
   }).filter(Boolean);
 
@@ -228,11 +169,11 @@ function validateAndTransformAssignments(assignments, shifts, tasks) {
 
 // Get available shifts
 exports.getShifts = (req, res) => {
-  console.log(' Fetching available shifts');
+  console.log('📋 Fetching available shifts');
 
   db.query('SELECT shift_id, start_time, end_time FROM shifts ORDER BY shift_id', (err, results) => {
     if (err) {
-      console.error('Database error:', err);
+      console.error('❌ Database error:', err);
       return res.status(500).json({ error: err.message });
     }
 
@@ -242,18 +183,18 @@ exports.getShifts = (req, res) => {
       time: `${shift.start_time.toString().split(' ')[4]}-${shift.end_time.toString().split(' ')[4]}`
     }));
 
-    console.log(' Shifts fetched successfully');
+    console.log('✅ Shifts fetched successfully');
     res.json(transformedShifts);
   });
 };
 
 // Get available tasks
 exports.getTasks = (req, res) => {
-  console.log(' Fetching available tasks');
+  console.log('📋 Fetching available tasks');
 
   db.query('SELECT task_id, task_name FROM tasks ORDER BY task_id', (err, results) => {
     if (err) {
-      console.error(' Database error:', err);
+      console.error('❌ Database error:', err);
       return res.status(500).json({ error: err.message });
     }
 
@@ -263,13 +204,12 @@ exports.getTasks = (req, res) => {
       name: task.task_name
     }));
 
-    console.log(' Tasks fetched successfully');
+    console.log('✅ Tasks fetched successfully');
     res.json(transformedTasks);
   });
 };
 
-
-// Get planning for a specific date
+// ✅ UPDATED: Get planning for a specific date (now includes custom times)
 exports.getPlanning = (req, res) => {
   const { date } = req.query;
 
@@ -277,12 +217,14 @@ exports.getPlanning = (req, res) => {
     return res.status(400).json({ error: "Date parameter is required" });
   }
 
-  console.log(' Fetching planning for date:', date);
+  console.log('📅 Fetching planning for date:', date);
 
   const query = `
-    SELECT p.*, e.name as employee_name, 
+    SELECT p.*, e.FirstName, e.LastName as employee_name, 
            DATE_FORMAT(s.start_time, '%H:%i') as start_time,
            DATE_FORMAT(s.end_time, '%H:%i') as end_time,
+           DATE_FORMAT(p.custom_start_time, '%H:%i') as custom_start_time,
+           DATE_FORMAT(p.custom_end_time, '%H:%i') as custom_end_time,
            CONCAT(DATE_FORMAT(s.start_time, '%H:%i'), '-', DATE_FORMAT(s.end_time, '%H:%i')) as shift_time
     FROM planning p
     LEFT JOIN employees e ON p.emp_id = e.emp_id
@@ -293,11 +235,11 @@ exports.getPlanning = (req, res) => {
 
   db.query(query, [date], (err, results) => {
     if (err) {
-      console.error(' Database error:', err);
+      console.error('❌ Database error:', err);
       return res.status(500).json({ error: err.message });
     }
 
-    console.log(' Planning data fetched successfully. Records:', results.length);
+    console.log('✅ Planning data fetched successfully. Records:', results.length);
     res.json(results);
   });
 };
@@ -309,18 +251,18 @@ exports.updatePlanningAssignment = (req, res) => {
     return res.status(400).json({ error: "Shift ID, Task ID, and Plan Date are required" });
   }
 
-  console.log(' Updating planning assignment:', { shift_id, task_id, plan_date, new_emp_id });
+  console.log('🔄 Updating planning assignment:', { shift_id, task_id, plan_date, new_emp_id });
 
   if (!new_emp_id) {
     const query = 'DELETE FROM planning WHERE shift_id = ? AND task_id = ? AND plan_date = ?';
     db.query(query, [shift_id, task_id, plan_date], (err, result) => {
       if (err) {
-        console.error(' Delete error:', err);
+        console.error('❌ Delete error:', err);
         return res.status(500).json({ error: err.message });
       }
 
-      console.log(' Assignment removed successfully');
-      res.json({ message: " Assignment removed successfully", affectedRows: result.affectedRows });
+      console.log('✅ Assignment removed successfully');
+      res.json({ message: "✅ Assignment removed successfully", affectedRows: result.affectedRows });
     });
   } else {
     const query = `
@@ -349,84 +291,51 @@ exports.deletePlanning = (req, res) => {
     return res.status(400).json({ error: "Date is required" });
   }
 
-  console.log(' Deleting planning for date:', date);
+  console.log('🗑️ Deleting planning for date:', date);
 
   db.query('DELETE FROM planning WHERE plan_date = ?', [date], (err, result) => {
     if (err) {
-      console.error(' Database error:', err);
+      console.error('❌ Database error:', err);
       return res.status(500).json({ error: err.message });
     }
 
-    console.log(' Planning deleted successfully. Removed rows:', result.affectedRows);
-    res.json({ message: " Planning deleted successfully", deleted_rows: result.affectedRows });
-  });
-};
-
-// Get available shifts
-exports.getShifts = (req, res) => {
-  console.log(' Fetching available shifts');
-
-  db.query('SELECT * FROM shifts ORDER BY shift_id', (err, results) => {
-    if (err) {
-      console.error(' Database error:', err);
-      return res.status(500).json({ error: err.message });
-    }
-
-    console.log(' Shifts fetched successfully');
-    res.json(results);
-  });
-};
-
-// Get available tasks (posts)
-exports.getTasks = (req, res) => {
-  console.log(' Fetching available tasks');
-
-  db.query('SELECT * FROM tasks ORDER BY task_id', (err, results) => {
-    if (err) {
-      console.error('Database error:', err);
-      return res.status(500).json({ error: err.message });
-    }
-
-    console.log(' Tasks fetched successfully');
-    res.json(results);
+    console.log('✅ Planning deleted successfully. Removed rows:', result.affectedRows);
+    res.json({ message: "✅ Planning deleted successfully", deleted_rows: result.affectedRows });
   });
 };
 
 exports.deleteFromPlanning = (req, res) => {
-    const { emp_id, task_id, shift_id, work_date } = req.body;
+  const { emp_id, task_id, shift_id, work_date } = req.body;
 
-    if (!emp_id || !task_id || !shift_id || !work_date) {
-        return res.status(400).json({ error: "Missing required fields" });
+  if (!emp_id || !task_id || !shift_id || !work_date) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  const deletePlanningQuery = `
+    DELETE FROM planning 
+    WHERE emp_id = ? AND task_id = ? AND shift_id = ? AND plan_date = ?;
+  `;
+
+  const deleteWorktimeQuery = `
+    DELETE FROM worktime
+    WHERE emp_id = ?
+      AND shift_id = ?
+      AND work_date = ?;
+  `;
+
+  db.query(deletePlanningQuery, [emp_id, task_id, shift_id, work_date], (err) => {
+    if (err) {
+      console.error("❌ Error deleting from planning:", err);
+      return res.status(500).json({ error: "DB error removing planning entry" });
     }
 
-    const deletePlanningQuery = `
-        DELETE FROM planning 
-        WHERE emp_id = ? AND task_id = ? AND shift_id = ? AND work_date = ?;
-    `;
-
-    // FIX: worktime table does NOT have task_id
-    const deleteWorktimeQuery = `
-        DELETE FROM worktime
-        WHERE emp_id = ?
-          AND shift_id = ?
-          AND work_date = ?;
-    `;
-
-    db.query(deletePlanningQuery, [emp_id, task_id, shift_id, work_date], (err) => {
-        if (err) {
-            console.error("❌ Error deleting from planning:", err);
-            return res.status(500).json({ error: "DB error removing planning entry" });
-        }
-
     db.query(deleteWorktimeQuery, [emp_id, shift_id, work_date], (err2) => {
-        if (err2) {
-                console.error("❌ Error deleting from worktime:", err2);
-                return res.status(500).json({ error: "DB error removing worktime entry" });
-                console.log("There is a problem ")
-        }
+      if (err2) {
+        console.error("❌ Error deleting from worktime:", err2);
+        return res.status(500).json({ error: "DB error removing worktime entry" });
+      }
 
-        return res.json({ success: true, message: "Entry deleted successfully" });
+      return res.json({ success: true, message: "Entry deleted successfully" });
     });
-    });
+  });
 };
-

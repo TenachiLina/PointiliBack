@@ -2,6 +2,7 @@ const db = require("../db"); // your MySQL connection (regular mysql2, not promi
 
 // Get advance by employee ID
 exports.getAdvanceByEmployee = (req, res) => {
+  
   const emp_id = req.params.emp_id;
   const { start, end } = req.query;
   

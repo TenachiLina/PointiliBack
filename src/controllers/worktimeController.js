@@ -2,48 +2,113 @@ const db = require('../db');
 
 // backend controller
 exports.saveWorkTime = (req, res) => {
+  const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penalty, absent, absentComment } = req.body;
+  
+  console.log("🟢 Incoming work time data:", req.body);
 
-const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penalty, absent, absentComment   } = req.body;
-    console.log("🟢 Incoming work time data:", req.body);
-console.log(req.body);
-
-  if (!employeeId || !date) {
-    return res.status(400).json({ error: "Employee ID and date are required" });
+  if (!employeeId || !date || !shift) {
+    return res.status(400).json({ error: "Employee ID, date, and shift are required" });
   }
 
-  const query = `
-    INSERT INTO worktime (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+  // Convert time strings to proper format
+  const formatTimeValue = (timeStr) => {
+    if (!timeStr || timeStr === "0") return "00:00:00";
+    if (timeStr.match(/^\d{1,2}:\d{2}$/)) return `${timeStr}:00`;
+    if (timeStr.match(/^\d{1,2}:\d{2}:\d{2}$/)) return timeStr;
+    return "00:00:00";
+  };
 
+  // First check if record exists
   db.query(
-  `
-INSERT INTO worktime 
-(emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, absent, absent_comment)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)
-  `,
-  [
-    employeeId,
-    shift || null,
-    date,
-    delay || "0",
-    overtime || "0",
-    timeOfWork || "0",
-    consomation || "0",
-    penalty || "0",
-    absent ? 1 : 0,                 
-    absentComment || ""   
-  ],
-  (err, result) => {
-    if (err) {
-  console.error("❌ DB insert error:", err.sqlMessage || err);
-  return res.status(500).json({ error: err.sqlMessage || err.message });
-}
+    `SELECT worktime_id FROM worktime WHERE emp_id = ? AND work_date = ? AND shift_id = ?`,
+    [employeeId, date, shift],
+    (checkErr, checkResults) => {
+      if (checkErr) {
+        console.error("❌ DB check error:", checkErr.sqlMessage || checkErr);
+        return res.status(500).json({ error: checkErr.sqlMessage || checkErr.message });
+      }
 
-    res.json({ message: "✅ Work time saved", id: result.insertId });
-  }
-);
+      if (checkResults.length > 0) {
+        // Record exists - UPDATE
+        console.log("📝 Updating existing worktime record ID:", checkResults[0].worktime_id);
+        
+        db.query(
+          `
+          UPDATE worktime 
+          SET late_minutes = ?, 
+              overtime_minutes = ?, 
+              work_hours = ?, 
+              consomation = ?, 
+              penalty = ?, 
+              absent = ?, 
+              absent_comment = ?
+          WHERE emp_id = ? AND work_date = ? AND shift_id = ?
+          `,
+          [
+            formatTimeValue(delay),
+            formatTimeValue(overtime),
+            formatTimeValue(timeOfWork),
+            consomation || 0,
+            penalty || 0,
+            absent ? 1 : 0,
+            absentComment || "",
+            employeeId,
+            date,
+            shift
+          ],
+          (updateErr, updateResult) => {
+            if (updateErr) {
+              console.error("❌ DB update error:", updateErr.sqlMessage || updateErr);
+              return res.status(500).json({ error: updateErr.sqlMessage || updateErr.message });
+            }
 
+            console.log("✅ Work time updated successfully");
+            res.json({ 
+              message: "✅ Work time updated", 
+              id: checkResults[0].worktime_id,
+              action: 'updated'
+            });
+          }
+        );
+      } else {
+        // Record doesn't exist - INSERT
+        console.log("➕ Inserting new worktime record for emp:", employeeId, "shift:", shift, "date:", date);
+        
+        db.query(
+          `
+          INSERT INTO worktime 
+          (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, absent, absent_comment)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            employeeId,
+            shift,
+            date,
+            formatTimeValue(delay),
+            formatTimeValue(overtime),
+            formatTimeValue(timeOfWork),
+            consomation || 0,
+            penalty || 0,
+            absent ? 1 : 0,
+            absentComment || ""
+          ],
+          (insertErr, insertResult) => {
+            if (insertErr) {
+              console.error("❌ DB insert error:", insertErr.sqlMessage || insertErr);
+              return res.status(500).json({ error: insertErr.sqlMessage || insertErr.message });
+            }
+
+            console.log("✅ Work time saved successfully, ID:", insertResult.insertId);
+            res.json({ 
+              message: "✅ Work time saved", 
+              id: insertResult.insertId,
+              action: 'inserted'
+            });
+          }
+        );
+      }
+    }
+  );
 };
 
 // Get work times by employee - FIXED
@@ -118,7 +183,7 @@ exports.updateWorkTime = (req, res) => {
   );
 };
 
-// Get worktime report for a range of dates for a specific employee
+// ✅ FIXED: Get worktime report - aggregates multiple shifts per day
 exports.getWorkTimeReport = (req, res) => {
   const { start, end, empId } = req.query;
 
@@ -129,58 +194,44 @@ exports.getWorkTimeReport = (req, res) => {
   }
 
   const params = [];
-  let whereClause = `
-    w.work_date BETWEEN ? AND ?
-  `;
-  let subqueryWhereClause = `
-    work_date BETWEEN ? AND ?
-  `;
+  let whereClause = `work_date BETWEEN ? AND ?`;
   
-  // Push params for subquery first
   params.push(start, end);
   
   if (empId) {
-    subqueryWhereClause += " AND emp_id = ?";
+    whereClause += " AND emp_id = ?";
     params.push(empId);
   }
 
- const query = `
-  SELECT
-    w.worktime_id,
-    w.emp_id,
-    e.name AS emp_name,
-    e.Base_salary,
-    w.shift_id,
-    w.work_date,
-    TIME_TO_SEC(w.late_minutes) / 60 AS late_minutes,
-    TIME_TO_SEC(w.overtime_minutes) / 60 AS overtime_minutes,
-    w.work_hours,
-    w.penalty,
-    w.consomation AS consommation,
-    w.absent,
-    w.absent_comment,
-
-    (
-      (TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8)
-      - w.penalty
-      - w.consomation
-    ) AS salary
-
-  
+  // ✅ NEW QUERY: Aggregates all shifts per employee per date
+  const query = `
+    SELECT
+      w.emp_id,
+      e.Base_salary,
+      e.FirstName,
+      e.LastName,
+      CONCAT(e.FirstName, ' ', e.LastName) AS emp_name,
+      w.work_date,
+      
+      -- Aggregate multiple shifts on same date
+      SUM(TIME_TO_SEC(w.work_hours) / 3600) AS work_hours_decimal,
+      SEC_TO_TIME(SUM(TIME_TO_SEC(w.work_hours))) AS work_hours,
+      SUM(TIME_TO_SEC(w.late_minutes) / 60) AS late_minutes,
+      SUM(TIME_TO_SEC(w.overtime_minutes) / 60) AS overtime_minutes,
+      SUM(w.penalty) AS penalty,
+      SUM(w.consomation) AS consommation,
+      MAX(w.absent) AS absent,
+      GROUP_CONCAT(DISTINCT w.absent_comment SEPARATOR '; ') AS absent_comment,
+      
+      -- Calculate salary based on total hours worked across all shifts
+      SUM(TIME_TO_SEC(w.work_hours) / 3600) * ((e.Base_salary / 26) / 8) - SUM(w.penalty) - SUM(w.consomation) AS salary
+      
     FROM worktime w
     INNER JOIN employees e ON w.emp_id = e.emp_id
-    INNER JOIN (
-      SELECT emp_id, work_date, shift_id, MAX(worktime_id) as max_id
-      FROM worktime
-      WHERE ${subqueryWhereClause}
-      GROUP BY emp_id, work_date, shift_id
-    ) latest ON w.emp_id = latest.emp_id 
-               AND w.work_date = latest.work_date 
-               AND w.shift_id = latest.shift_id
-               AND w.worktime_id = latest.max_id
-    ORDER BY e.name, w.work_date;
-`;
-
+    WHERE ${whereClause}
+    GROUP BY w.emp_id, w.work_date, e.Base_salary, e.FirstName, e.LastName
+    ORDER BY e.FirstName, e.LastName, w.work_date;
+  `;
 
   db.query(query, params, (err, results) => {
     if (err) {
@@ -190,6 +241,8 @@ exports.getWorkTimeReport = (req, res) => {
 
     const normalized = results.map((r) => ({
       ...r,
+      work_hours: r.work_hours || "00:00:00",
+      work_hours_decimal: Number(r.work_hours_decimal || 0),
       late_minutes: Number(r.late_minutes || 0),
       overtime_minutes: Number(r.overtime_minutes || 0),
       penalty: Number(r.penalty || 0),
@@ -201,22 +254,17 @@ exports.getWorkTimeReport = (req, res) => {
 
     const summary = normalized.reduce(
       (acc, r) => {
-        // convert HH:MM to decimal hours
-        const [h, m] = (r.work_hours || "0:0").split(":").map(Number);
-        const hoursDecimal = h + m / 60;
+        // Use the pre-calculated decimal hours
+        const hoursDecimal = r.work_hours_decimal || 0;
 
         acc.total_hours += hoursDecimal;
         acc.total_delay_minutes += r.late_minutes;
         acc.total_overtime_minutes += r.overtime_minutes;
-
         acc.total_penalty += r.penalty;
         acc.total_consommation += r.consommation;
-
         acc.total_salary += r.salary;
         
-        // Count absences
         if (r.absent) acc.count_absent++;
-
         if (r.late_minutes > 0) acc.count_late++;
 
         return acc;
@@ -232,14 +280,16 @@ exports.getWorkTimeReport = (req, res) => {
         count_absent: 0,
       }
     );
+    
     console.log("💰 Salaries per day:", normalized.map(r => ({
-  date: r.work_date,
-  hours: r.work_hours,
-  salary: r.salary
-})));
+      date: r.work_date,
+      name: r.emp_name,
+      hours: r.work_hours,
+      hours_decimal: r.work_hours_decimal,
+      salary: r.salary
+    })));
 
-console.log("💵 TOTAL SALARY:", summary.total_salary);
-
+    console.log("💵 TOTAL SALARY:", summary.total_salary);
 
     res.json({ rows: normalized, summary });
   });
