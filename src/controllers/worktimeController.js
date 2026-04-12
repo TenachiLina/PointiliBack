@@ -140,7 +140,7 @@ exports.getWorkTimesByDate = (req, res) => {
   SELECT 
     w.worktime_id,
     w.emp_id,
-    e.name as emp_name,
+    CONCAT(e.FirstName, ' ', e.LastName) as emp_name,
     w.shift_id,
     w.work_date,
     w.clock_in,
@@ -153,7 +153,7 @@ exports.getWorkTimesByDate = (req, res) => {
   FROM worktime w
   INNER JOIN employees e ON w.emp_id = e.emp_id
   WHERE w.work_date = ?
-  ORDER BY e.name
+  ORDER BY e.FirstName
 `;
 
   db.query(query, [date], (err, results) => {
@@ -165,10 +165,7 @@ exports.getWorkTimesByDate = (req, res) => {
     console.log(`Found ${results.length} records for date ${date}`);
 
     if (results.length === 0) {
-      return res.status(404).json({
-        message: 'No worktime records found for this date',
-        date: date
-      });
+      return res.json([]);
     }
 
     res.json(results);
