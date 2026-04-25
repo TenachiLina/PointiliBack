@@ -149,9 +149,11 @@ exports.getWorkTimesByDate = (req, res) => {
     w.overtime_minutes,
     w.work_hours,
     w.absent,
-    w.absent_comment
+    w.absent_comment,
+    w.consomation,
+    w.penalty
   FROM worktime w
-  INNER JOIN employees e ON w.emp_id = e.emp_id
+  LEFT JOIN employees e ON w.emp_id = e.emp_id
   WHERE w.work_date = ?
   ORDER BY e.FirstName
 `;
