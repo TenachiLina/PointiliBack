@@ -5,7 +5,7 @@ const worktimeRoutes = require('./routes/worktime');
 const planningRoutes = require('./routes/planning');
 const shiftsRoutes = require('./routes/shiftsRoutes');
 const advancesRoutes = require('./routes/advances');
-
+const path = require('path');
 
 const app = express();
 
@@ -32,8 +32,16 @@ app.use('/api/planning', planningRoutes);
 app.use('/api/shifts', shiftsRoutes);
 app.use('/api/advances', advancesRoutes);
 
-
-
+//refresh fix ✅ 
+const frontendPath = path.resolve(__dirname, '../frontend/dist');
+app.use(express.static(frontendPath));
+app.get(/.*/, (req, res) => {
+  // Only serve frontend for non-API routes
+  if (req.originalUrl.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API route not found' });
+  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 // --- Start server ---
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

@@ -2,8 +2,7 @@ const db = require('../db');
 
 // backend controller
 exports.saveWorkTime = (req, res) => {
-  const { employeeId, date, timeOfWork, shift, delay, overtime, consomation, penalty, absent, absentComment } = req.body;
-  
+  const { employeeId, date, clockIn, clockOut, timeOfWork, shift, delay, overtime, consomation, penalty, absent, absentComment } = req.body;
   console.log("🟢 Incoming work time data:", req.body);
 
   if (!employeeId || !date || !shift) {
@@ -31,19 +30,21 @@ exports.saveWorkTime = (req, res) => {
       if (checkResults.length > 0) {
         // Record exists - UPDATE
         console.log("📝 Updating existing worktime record ID:", checkResults[0].worktime_id);
-        
+
         db.query(
           `
-          UPDATE worktime 
-          SET late_minutes = ?, 
-              overtime_minutes = ?, 
-              work_hours = ?, 
-              consomation = ?, 
-              penalty = ?, 
-              absent = ?, 
-              absent_comment = ?
-          WHERE emp_id = ? AND work_date = ? AND shift_id = ?
-          `,
+UPDATE worktime 
+SET late_minutes = ?, 
+    overtime_minutes = ?, 
+    work_hours = ?, 
+    consomation = ?, 
+    penalty = ?, 
+    absent = ?, 
+    absent_comment = ?,
+    clock_in = ?,
+    clock_out = ?
+WHERE emp_id = ? AND work_date = ? AND shift_id = ?
+`,
           [
             formatTimeValue(delay),
             formatTimeValue(overtime),
@@ -52,6 +53,8 @@ exports.saveWorkTime = (req, res) => {
             penalty || 0,
             absent ? 1 : 0,
             absentComment || "",
+            formatTimeValue(clockIn),
+            formatTimeValue(clockOut),
             employeeId,
             date,
             shift
@@ -63,8 +66,8 @@ exports.saveWorkTime = (req, res) => {
             }
 
             console.log("✅ Work time updated successfully");
-            res.json({ 
-              message: "✅ Work time updated", 
+            res.json({
+              message: "✅ Work time updated",
               id: checkResults[0].worktime_id,
               action: 'updated'
             });
@@ -73,13 +76,13 @@ exports.saveWorkTime = (req, res) => {
       } else {
         // Record doesn't exist - INSERT
         console.log("➕ Inserting new worktime record for emp:", employeeId, "shift:", shift, "date:", date);
-        
+
         db.query(
           `
-          INSERT INTO worktime 
-          (emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, absent, absent_comment)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
+INSERT INTO worktime 
+(emp_id, shift_id, work_date, late_minutes, overtime_minutes, work_hours, consomation, penalty, absent, absent_comment, clock_in, clock_out)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`,
           [
             employeeId,
             shift,
@@ -90,7 +93,9 @@ exports.saveWorkTime = (req, res) => {
             consomation || 0,
             penalty || 0,
             absent ? 1 : 0,
-            absentComment || ""
+            absentComment || "",
+            formatTimeValue(clockIn),
+            formatTimeValue(clockOut)
           ],
           (insertErr, insertResult) => {
             if (insertErr) {
@@ -99,8 +104,8 @@ exports.saveWorkTime = (req, res) => {
             }
 
             console.log("✅ Work time saved successfully, ID:", insertResult.insertId);
-            res.json({ 
-              message: "✅ Work time saved", 
+            res.json({
+              message: "✅ Work time saved",
               id: insertResult.insertId,
               action: 'inserted'
             });
@@ -132,22 +137,26 @@ exports.getWorkTimesByDate = (req, res) => {
   console.log('Fetching worktimes for date:', date);
 
   const query = `
-    SELECT 
-      w.worktime_id,
-      w.emp_id,
-      e.name as emp_name,
-      w.shift_id,
-      w.work_date,
-      w.late_minutes,
-      w.overtime_minutes,
-      w.work_hours,
-      w.absent,
-      w.absent_comment
-    FROM worktime w
-    INNER JOIN employees e ON w.emp_id = e.emp_id
-    WHERE w.work_date = ?
-    ORDER BY e.name
-  `;
+  SELECT 
+    w.worktime_id,
+    w.emp_id,
+    CONCAT(e.FirstName, ' ', e.LastName) as emp_name,
+    w.shift_id,
+    w.work_date,
+    w.clock_in,
+    w.clock_out,
+    w.late_minutes,
+    w.overtime_minutes,
+    w.work_hours,
+    w.absent,
+    w.absent_comment,
+    w.consomation,
+    w.penalty
+  FROM worktime w
+  LEFT JOIN employees e ON w.emp_id = e.emp_id
+  WHERE w.work_date = ?
+  ORDER BY e.FirstName
+`;
 
   db.query(query, [date], (err, results) => {
     if (err) {
@@ -158,10 +167,7 @@ exports.getWorkTimesByDate = (req, res) => {
     console.log(`Found ${results.length} records for date ${date}`);
 
     if (results.length === 0) {
-      return res.status(404).json({
-        message: 'No worktime records found for this date',
-        date: date
-      });
+      return res.json([]);
     }
 
     res.json(results);
@@ -195,9 +201,9 @@ exports.getWorkTimeReport = (req, res) => {
 
   const params = [];
   let whereClause = `work_date BETWEEN ? AND ?`;
-  
+
   params.push(start, end);
-  
+
   if (empId) {
     whereClause += " AND emp_id = ?";
     params.push(empId);
@@ -263,7 +269,7 @@ exports.getWorkTimeReport = (req, res) => {
         acc.total_penalty += r.penalty;
         acc.total_consommation += r.consommation;
         acc.total_salary += r.salary;
-        
+
         if (r.absent) acc.count_absent++;
         if (r.late_minutes > 0) acc.count_late++;
 
@@ -280,7 +286,7 @@ exports.getWorkTimeReport = (req, res) => {
         count_absent: 0,
       }
     );
-    
+
     console.log("💰 Salaries per day:", normalized.map(r => ({
       date: r.work_date,
       name: r.emp_name,
